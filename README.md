@@ -15,7 +15,7 @@ on:
   release:
     types: [created, edited]
 jobs:
-  release-assets:
+  publish-catpkg:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
