@@ -1,0 +1,27 @@
+name: Publish catpkg
+author: BSData
+description: >
+  Publishes datafiles (catz/gstz), indexes (bsi, catpkg.json)
+  and a bsr package, attaching them to a given release for download.
+inputs:
+  token:
+    description: GitHub auth token to authorize uploading release assets
+    required: false
+    default: ${{ github.token }}
+  staging-path:
+    description: Path where assets will be written to before being uploaded
+    required: false
+    default: ${{ runner.temp }}/assets
+  upload-url:
+    description: Upload URL for release assets
+    required: false
+    default: ${{ github.event.release.upload_url }}
+outputs:
+  staging-path:
+    description: Path where generated assets were saved
+runs:
+  using: node12
+  main: dist/index.js
+branding:
+  icon: book-open
+  color: blue

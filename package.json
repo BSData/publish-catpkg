@@ -1,0 +1,9 @@
+{
+  "main": "invoke-pwsh.js",
+  "author": "BSData",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.2.2",
+    "@actions/exec": "^1.0.3"
+  }
+}
