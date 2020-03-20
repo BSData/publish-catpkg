@@ -101,44 +101,44 @@ $catpkgJsonFilename = "$repo.catpkg.json"
 
 # build '$repo.catpkg.json' content
 $bsdatajson = [ordered]@{
-    '$schema'              = 'https://raw.githubusercontent.com/BSData/schemas/master/src/catpkg.schema.json'
-    name                   = $repo
-    description            = $repoName
-    battleScribeVersion    = $null # set below
-    version                = $tag
-    lastUpdated            = ($event.release.published_at, $event.release.created_at | Select-Object -First 1)[0]
-    lastUpdateDescription  = $event.release.name
-    indexUrl               = Get-GitHubUrl "$repo.latest.bsi" -LatestReleaseAsset
-    repositoryUrl          = Get-GitHubUrl $catpkgJsonFilename -LatestReleaseAsset
-    githubUrl              = $event.repository.html_url
-    feedUrl                = $repoBaseUrl + '/releases.atom'
-    bugTrackerUrl          = $bugTrackerUrl
-    reportBugUrl           = $reportBugUrl
-    repositoryFiles        = @($datafiles | ForEach-Object {
-        # considered reading index.bsi, but loading zip to memory in powershell
-        # required using .net types and was messy
-        # also it's expected wham will take over creation of catpkg json in future
-        $nonzipFilename = $_.originalName
-        $xml = if (Test-Path $nonzipFilename) { [xml](Get-Content $nonzipFilename) }
-        if ($null -eq $xml) {
-            throw "Cannot index '$($_.file.Name)' - didn't find '$nonzipFilename'."
-        }
-        $root = $xml.catalogue, $xml.gameSystem | Select-Object -First 1
-        return [ordered]@{
-            id                  = $root.id
-            name                = $root.name
-            type                = $root.LocalName.ToLowerInvariant()
-            revision            = [int]$root.revision
-            battleScribeVersion = $root.battleScribeVersion
-            fileUrl             = Get-GitHubUrl $_.file.Name -LatestReleaseAsset
-            githubUrl           = Get-GitHubUrl $nonzipFilename -Blob $event.release.target_commitish
-            bugTrackerUrl       = $bugTrackerUrl
-            reportBugUrl        = $reportBugUrl
-            authorName          = $root.authorName
-            authorContact       = $root.authorContact
-            authorUrl           = $root.authorUrl
-        }
-    })
+    '$schema'             = 'https://raw.githubusercontent.com/BSData/schemas/master/src/catpkg.schema.json'
+    name                  = $repo
+    description           = $repoName
+    battleScribeVersion   = $null # set below
+    version               = $tag
+    lastUpdated           = ($event.release.published_at, $event.release.created_at | Select-Object -First 1)[0]
+    lastUpdateDescription = $event.release.name
+    indexUrl              = Get-GitHubUrl "$repo.latest.bsi" -LatestReleaseAsset
+    repositoryUrl         = Get-GitHubUrl $catpkgJsonFilename -LatestReleaseAsset
+    githubUrl             = $event.repository.html_url
+    feedUrl               = $repoBaseUrl + '/releases.atom'
+    bugTrackerUrl         = $bugTrackerUrl
+    reportBugUrl          = $reportBugUrl
+    repositoryFiles       = @($datafiles | ForEach-Object {
+            # considered reading index.bsi, but loading zip to memory in powershell
+            # required using .net types and was messy
+            # also it's expected wham will take over creation of catpkg json in future
+            $nonzipFilename = $_.originalName
+            $xml = if (Test-Path $nonzipFilename) { [xml](Get-Content $nonzipFilename) }
+            if ($null -eq $xml) {
+                throw "Cannot index '$($_.file.Name)' - didn't find '$nonzipFilename'."
+            }
+            $root = $xml.catalogue, $xml.gameSystem | Select-Object -First 1
+            return [ordered]@{
+                id                  = $root.id
+                name                = $root.name
+                type                = $root.LocalName.ToLowerInvariant()
+                revision            = [int]$root.revision
+                battleScribeVersion = $root.battleScribeVersion
+                fileUrl             = Get-GitHubUrl $_.file.Name -LatestReleaseAsset
+                githubUrl           = Get-GitHubUrl $nonzipFilename -Blob $event.release.target_commitish
+                bugTrackerUrl       = $bugTrackerUrl
+                reportBugUrl        = $reportBugUrl
+                authorName          = $root.authorName
+                authorContact       = $root.authorContact
+                authorUrl           = $root.authorUrl
+            }
+        })
 }
 # select "highest" version via lexicographical (alphanumeric) order
 $bsdatajson.battleScribeVersion = $bsdatajson.repositoryFiles.battleScribeVersion | Sort-Object -Bottom 1
@@ -206,7 +206,26 @@ Get-ChildItem $stagingPath -Include *.json, *.bsi, *.bsr, *.gstz, *.catz -Recurs
         ContentType = $mime
     }
     Write-Host "Uploading $name to $($apiArgs.Uri)"
-    $res = Invoke-RestMethod @apiArgs @authHeaders
+    $attempt = 0
+    do {
+        $attempt++
+        $done = $attempt -ge 5
+        try {
+            $res = Invoke-RestMethod @apiArgs @authHeaders
+            $done = $true
+        }
+        catch {
+            if ($done) {
+                Write-Verbose "    Attempt $attempt failed."
+                throw
+            }
+            else {
+                $delay = 5 * $attempt
+                Write-Verbose "    Attempt $attempt failed. Retrying in $delay seconds..."
+                Start-Sleep $delay
+            }
+        }
+    } while (-not $done)
     Write-Host "    State: $($res.state) @ $($res.browser_download_url)"
     if ($res.name -cne $name) {
         Write-Error "    Uploaded asset has different name than expected. Is: '$($res.name)'. Expected: '$name'."
