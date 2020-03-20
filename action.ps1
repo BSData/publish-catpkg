@@ -193,51 +193,6 @@ $previousAssets = Invoke-RestMethod $event.release.assets_url @authHeaders -Foll
 # staged assets prepared for upload
 $stagedAssets = Get-ChildItem $stagingPath -Include *.json, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
 
-# checksums: calculate, compare to uploaded if exists, stage if not or differs
-$checksums = [ordered]@{
-    git_sha = $env:GITHUB_SHA
-    files     = [ordered]@{ }
-}
-$stagedAssets | ForEach-Object {
-    $checksums.files[$_.Name] = (Get-FileHash $_).Hash
-}
-$checksumFilename = 'checksums.json'
-$checksumFilepath = Join-Path $stagingPath $checksumFilename
-$existingChecksumAsset = $previousAssets | Where-Object name -eq $checksumFilename
-if ($existingChecksumAsset) {
-    # check previous checksums
-    Write-Host "Downloading existing $checksumFilename for comparison."
-    $apiArgs = @{
-        Method  = 'Get'
-        Uri     = $existingChecksumAsset.url
-        OutFile = $checksumFilepath
-        Headers = @{
-            Accept = 'application/octet-stream'
-        } + $authHeaders.Headers
-    }
-    $null = Invoke-RestMethod @apiArgs -MaximumRetryCount 5 -RetryIntervalSec 5
-    $existingChecksums = Get-Content $checksumFilepath | ConvertFrom-Json
-    $same = $checksums.git_sha -eq $existingChecksums.git_sha -and ($stagedAssets | Where-Object {
-            $savedSha = $existingChecksums.files[$_.Name]
-            $equal = $null -ne $savedSha -and $savedSha -eq $checksums.files[$_.Name]
-            if (!$equal) {
-                Write-Host "Checksum differs for '$($_.Name)'."
-            }
-        } | Select-Object -First 1)
-    if ($same) {
-        Write-Host "Checksums are the same. Skipping re-upload."
-        exit 0
-    }
-    Write-Host "Checksums differ."
-}
-else {
-    Write-Host "$checksumFilename isn't an existing asset."
-}
-Write-Host "Adding $checksumFilename to staged assets."
-$checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath
-$checksumFile = Get-Item $checksumFilepath
-$stagedAssets = @() + $checksumFile + $stagedAssets
-
 # upload assets (delete old ones with the same name first)
 $stagedAssets | ForEach-Object {
     $name = $_.Name
