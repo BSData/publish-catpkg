@@ -199,7 +199,7 @@ $checksums = [ordered]@{
     files     = [ordered]@{ }
 }
 $stagedAssets | ForEach-Object {
-    $checksums.files[$_.Name] = Get-FileHash $_
+    $checksums.files[$_.Name] = (Get-FileHash $_).Hash
 }
 $checksumFilename = 'checksums.json'
 $checksumFilepath = Join-Path $stagingPath $checksumFilename
