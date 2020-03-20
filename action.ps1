@@ -192,6 +192,8 @@ $previousAssets = Invoke-RestMethod $event.release.assets_url @authHeaders -Foll
 
 # staged assets prepared for upload
 $stagedAssets = Get-ChildItem $stagingPath -Include *.json, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
+
+# checksums: calculate, compare to uploaded if exists, stage if not or differs
 $checksums = [ordered]@{
     'git-sha' = $event.release.target_commitish
     files     = [ordered]@{ }
@@ -228,7 +230,7 @@ if ($existingChecksumAsset) {
 Write-Host "Adding $checksumFilename to staged assets."
 $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath
 $checksumFile = Get-Item $checksumFilepath
-$stagedAssets = @($checksumFile, $stagedAssets)
+$stagedAssets = $checksumFile, $stagedAssets
 
 # upload assets (delete old ones with the same name first)
 $stagedAssets | ForEach-Object {
