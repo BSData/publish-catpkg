@@ -82,6 +82,7 @@ $datafiles = Get-ChildItem $stagingPath -Recurse -Include *.catz, *.gstz -File |
     return @{
         originalName = $OriginalName
         file         = $File
+        sha256       = (Get-FileHash $File 'SHA256').Hash
     }
 }
 $datafiles | ForEach-Object { Write-Host "Staged '$($_.originalName)' as '$($_.file.Name)'" -ForegroundColor Green }
@@ -137,6 +138,7 @@ $bsdatajson = [ordered]@{
                 authorName          = $root.authorName
                 authorContact       = $root.authorContact
                 authorUrl           = $root.authorUrl
+                sha256              = $_.sha256
             }
         })
 }
@@ -188,8 +190,46 @@ $authHeaders = @{
 # get previous assets
 $previousAssets = Invoke-RestMethod $event.release.assets_url @authHeaders -FollowRelLink | ForEach-Object { $_ }
 
+# staged assets prepared for upload
+$stagedAssets = Get-ChildItem $stagingPath -Include *.json, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
+$checksums = [ordered]@{
+    'git-sha' = $event.release.target_commitish
+    files     = [ordered]@{ }
+}
+$stagedAssets | ForEach-Object {
+    $checksums.files[$_.Name] = Get-FileHash $_
+}
+$checksumFilename = 'checksums.json'
+$checksumFilepath = Join-Path $stagingPath $checksumFilename
+$existingChecksumAsset = $previousAssets | Where-Object name -eq $checksumFilename
+if ($existingChecksumAsset) {
+    # check previous checksums
+    Write-Host "Downloading existing $checksumFilename for comparison."
+    $apiArgs = @{
+        Method  = 'Get'
+        Uri     = $existingChecksumAsset.url
+        OutFile = $checksumFilepath
+        Headers = @{
+            Accept = 'application/octet-stream'
+        } + $authHeaders.Headers
+    }
+    Invoke-RestMethod @apiArgs -MaximumRetryCount 5 -RetryIntervalSec 5
+    $existingChecksums = Get-Content $checksumFilepath | ConvertFrom-Json
+    $same = $checksums.'git-sha' -eq $existingChecksums.'git-sha' -and ($stagedAssets | Where-Object {
+            $savedSha = $existingChecksums.files[$_.Name]
+            $null -ne $savedSha -and $savedSha -eq $checksums.files[$_.Name]
+        } | Select-Object -First 1)
+    if ($same) {
+        Write-Host "Checksums are the same. Skipping re-upload."
+        exit 0
+    }
+    Write-Host "Checksums differ. Adding $checksumFilename to staged assets."
+    $checksumFile = $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath -PassThru
+    $stagedAssets = @($checksumFile, $stagedAssets)
+}
+
 # upload assets (delete old ones with the same name first)
-Get-ChildItem $stagingPath -Include *.json, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | ForEach-Object {
+$stagedAssets | ForEach-Object {
     $name = $_.Name
     $path = $_.FullName
     $mime = if ($_.Extension -ne '.json') { 'application/zip' } else { 'application/json' }
