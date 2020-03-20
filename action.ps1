@@ -223,10 +223,11 @@ if ($existingChecksumAsset) {
         Write-Host "Checksums are the same. Skipping re-upload."
         exit 0
     }
-    Write-Host "Checksums differ. Adding $checksumFilename to staged assets."
-    $checksumFile = $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath -PassThru
-    $stagedAssets = @($checksumFile, $stagedAssets)
+    Write-Host "Checksums differ."
 }
+Write-Host "Adding $checksumFilename to staged assets."
+$checksumFile = $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath -PassThru
+$stagedAssets = @($checksumFile, $stagedAssets)
 
 # upload assets (delete old ones with the same name first)
 $stagedAssets | ForEach-Object {
