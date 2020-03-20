@@ -215,17 +215,23 @@ if ($existingChecksumAsset) {
             Accept = 'application/octet-stream'
         } + $authHeaders.Headers
     }
-    Invoke-RestMethod @apiArgs -MaximumRetryCount 5 -RetryIntervalSec 5
+    $null = Invoke-RestMethod @apiArgs -MaximumRetryCount 5 -RetryIntervalSec 5
     $existingChecksums = Get-Content $checksumFilepath | ConvertFrom-Json
     $same = $checksums.'git-sha' -eq $existingChecksums.'git-sha' -and ($stagedAssets | Where-Object {
             $savedSha = $existingChecksums.files[$_.Name]
-            $null -ne $savedSha -and $savedSha -eq $checksums.files[$_.Name]
+            $equal = $null -ne $savedSha -and $savedSha -eq $checksums.files[$_.Name]
+            if (!$equal) {
+                Write-Host "Checksum differs for '$($_.Name)'."
+            }
         } | Select-Object -First 1)
     if ($same) {
         Write-Host "Checksums are the same. Skipping re-upload."
         exit 0
     }
     Write-Host "Checksums differ."
+}
+else {
+    Write-Host "$checksumFilename isn't an existing asset."
 }
 Write-Host "Adding $checksumFilename to staged assets."
 $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath
