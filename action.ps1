@@ -230,7 +230,7 @@ if ($existingChecksumAsset) {
 Write-Host "Adding $checksumFilename to staged assets."
 $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath
 $checksumFile = Get-Item $checksumFilepath
-$stagedAssets = $checksumFile, $stagedAssets
+$stagedAssets = @() + $checksumFile + $stagedAssets
 
 # upload assets (delete old ones with the same name first)
 $stagedAssets | ForEach-Object {
