@@ -226,7 +226,8 @@ if ($existingChecksumAsset) {
     Write-Host "Checksums differ."
 }
 Write-Host "Adding $checksumFilename to staged assets."
-$checksumFile = $checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath -PassThru
+$checksums | ConvertTo-Json -Compress | Set-Content $checksumFilepath
+$checksumFile = Get-Item $checksumFilepath
 $stagedAssets = @($checksumFile, $stagedAssets)
 
 # upload assets (delete old ones with the same name first)
