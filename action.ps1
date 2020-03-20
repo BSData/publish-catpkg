@@ -195,7 +195,7 @@ $stagedAssets = Get-ChildItem $stagingPath -Include *.json, *.bsi, *.bsr, *.gstz
 
 # checksums: calculate, compare to uploaded if exists, stage if not or differs
 $checksums = [ordered]@{
-    'git-sha' = $event.release.target_commitish
+    git_sha = $env:GITHUB_SHA
     files     = [ordered]@{ }
 }
 $stagedAssets | ForEach-Object {
@@ -217,7 +217,7 @@ if ($existingChecksumAsset) {
     }
     $null = Invoke-RestMethod @apiArgs -MaximumRetryCount 5 -RetryIntervalSec 5
     $existingChecksums = Get-Content $checksumFilepath | ConvertFrom-Json
-    $same = $checksums.'git-sha' -eq $existingChecksums.'git-sha' -and ($stagedAssets | Where-Object {
+    $same = $checksums.git_sha -eq $existingChecksums.git_sha -and ($stagedAssets | Where-Object {
             $savedSha = $existingChecksums.files[$_.Name]
             $equal = $null -ne $savedSha -and $savedSha -eq $checksums.files[$_.Name]
             if (!$equal) {
