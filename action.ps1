@@ -2,20 +2,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-# check if there are any cat/gst files to process, otherwise short-circuit out
-if ((Get-ChildItem -Recurse -Include *.cat, *.gst -File).Length -eq 0) {
-    Write-Host "No datafiles to process and publish." -ForegroundColor Green
-    exit 0
-}
-
 Import-Module $PSScriptRoot/lib/GitHubActionsCore
-
-# install wham if necessary
-$wham = "$PSScriptRoot/lib/wham"
-if ($null -eq (Get-Command $wham -ErrorAction SilentlyContinue)) {
-    $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 1
-    dotnet tool install wham --version 0.7.0 --tool-path "$PSScriptRoot/lib"
-}
 
 # read inputs, set output
 $stagingPath = Get-ActionInput staging-path -Required
@@ -25,6 +12,19 @@ $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
 $tag = $event.release.tag_name
 $repoName = $event.repository.description, $event.repository.name | Select-Object -First 1
 $repoBaseUrl = $event.repository.html_url
+
+# check if there are any cat/gst files to process, otherwise short-circuit out
+if ((Get-ChildItem -Recurse -Include *.cat, *.gst -File).Length -eq 0) {
+    Write-Host "No datafiles to process and publish." -ForegroundColor Green
+    exit 0
+}
+
+# install wham if necessary
+$wham = "$PSScriptRoot/lib/wham"
+if ($null -eq (Get-Command $wham -ErrorAction SilentlyContinue)) {
+    $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 1
+    dotnet tool install wham --version 0.7.0 --tool-path "$PSScriptRoot/lib"
+}
 
 # this method builds an URL to various github locations
 function Get-GitHubUrl {
