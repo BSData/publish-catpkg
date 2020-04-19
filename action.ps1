@@ -66,7 +66,7 @@ function Get-EscapedAssetName {
     # GitHub renames asset filenames that have special characters, non-alphanumeric characters, and leading or trailing periods.
     # Let's do that ourselves first so we know exact filename before upload.
     # 1. replace any group of non a-z, digit, hyphen or underscore chars with a single period
-    $periodsOnly = $Name -creplace '[^a-zA-Z\d\-_]+', '.'
+    $periodsOnly = $Name -creplace '[^a-zA-Z0-9\-_]+', '.'
     # 2. remove any leading or trailing period
     return $periodsOnly.Trim('.')
 }
