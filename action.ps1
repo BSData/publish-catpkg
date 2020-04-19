@@ -146,7 +146,7 @@ $bsdatajson = [ordered]@{
 $bsdatajson.battleScribeVersion = $bsdatajson.repositoryFiles.battleScribeVersion | Sort-Object -Bottom 1
 
 # save json to file
-$bsdatajson | ConvertTo-Json -Compress | Set-Content (Join-Path $stagingPath $catpkgJsonFilename)
+$bsdatajson | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii | Set-Content (Join-Path $stagingPath $catpkgJsonFilename)
 
 # this function performs uri template expansion (only query part)
 function Expand-UriTemplate {
