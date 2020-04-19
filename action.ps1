@@ -10,7 +10,7 @@ Set-ActionOutput staging-path $stagingPath
 $repo = ($env:GITHUB_REPOSITORY -split '/')[1]
 $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
 $tag = $event.release.tag_name
-$repoName = $event.repository.description, $event.repository.name | Select-Object -First 1
+$repoDisplayName = $event.repository.description, $event.repository.name | Select-Object -First 1
 $repoBaseUrl = $event.repository.html_url
 
 # check if there are any cat/gst files to process, otherwise short-circuit out
@@ -86,30 +86,32 @@ $datafiles = Get-ChildItem $stagingPath -Recurse -Include *.catz, *.gstz -File |
     }
 }
 $datafiles | ForEach-Object { Write-Host "Staged '$($_.originalName)' as '$($_.file.Name)'" -ForegroundColor Green }
+$taggedAssetNameEscaped = Get-EscapedAssetName "$repo.$tag"
+$latestAssetNameEscaped = Get-EscapedAssetName "$repo.latest"
 
 # publish indexes based on catz/gstz datafiles (already renamed)
 Push-Location $stagingPath
 # 'tag' assets: create '$repo.$tag.bsi' and '$repo.$tag.bsr'
-& $wham publish -a bsr bsi -f "$repo.$tag" --repo-name $repoName --url $(Get-GitHubUrl "$repo.$tag.bsi" $tag)
+& $wham publish -a bsr bsi -f $taggedAssetNameEscaped --repo-name $repoDisplayName --url $(Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag)
 
 # 'latest' assets: create '$repo.latest.bsi'
-& $wham publish -a bsi -f "$repo.latest" --repo-name $repoName --url $(Get-GitHubUrl "$repo.latest.bsi" -LatestReleaseAsset)
+& $wham publish -a bsi -f $latestAssetNameEscaped --repo-name $repoDisplayName --url $(Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset)
 Pop-Location
 
 $bugTrackerUrl = $repoBaseUrl + '/issues'
 $reportBugUrl = 'http://battlescribedata.appspot.com/#/repo/' + $repo
-$catpkgJsonFilename = "$repo.catpkg.json"
+$catpkgJsonFilename = Get-EscapedAssetName "$repo.catpkg.json"
 
 # build '$repo.catpkg.json' content
 $bsdatajson = [ordered]@{
     '$schema'             = 'https://raw.githubusercontent.com/BSData/schemas/master/src/catpkg.schema.json'
     name                  = $repo
-    description           = $repoName
+    description           = $repoDisplayName
     battleScribeVersion   = $null # set below
     version               = $tag
     lastUpdated           = ($event.release.published_at, $event.release.created_at | Select-Object -First 1)[0]
     lastUpdateDescription = $event.release.name
-    indexUrl              = Get-GitHubUrl "$repo.latest.bsi" -LatestReleaseAsset
+    indexUrl              = Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset
     repositoryUrl         = Get-GitHubUrl $catpkgJsonFilename -LatestReleaseAsset
     githubUrl             = $event.repository.html_url
     feedUrl               = $repoBaseUrl + '/releases.atom'
