@@ -23,7 +23,9 @@ if ((Get-ChildItem -Recurse -Include *.cat, *.gst -File).Length -eq 0) {
 $wham = "$PSScriptRoot/lib/wham"
 if ($null -eq (Get-Command $wham -ErrorAction SilentlyContinue)) {
     $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 1
-    dotnet tool install wham --version 0.7.0 --tool-path "$PSScriptRoot/lib"
+    $env:DOTNET_NOLOGO = 1
+    $env:DOTNET_CLI_TELEMETRY_OPTOUT = 1
+    dotnet tool install wham --version 0.8.0 --tool-path "$PSScriptRoot/lib"
 }
 
 # this method builds an URL to various github locations
