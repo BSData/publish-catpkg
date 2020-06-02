@@ -343,7 +343,6 @@ function Publish-GitHubReleaseAsset {
         $Path | ForEach-Object {
             $file = Get-Item $_
             $name = $file.Name
-            $path = $file.FullName
             $mime = 'application/octet-stream'
             if ($Force) {
                 $duplicate = $previousAssets | Where-Object name -eq $name | Select-Object -First 1
@@ -355,12 +354,12 @@ function Publish-GitHubReleaseAsset {
             $apiArgs = @{
                 Method            = 'POST'
                 Uri               = Expand-UriTemplate $UploadUrl @{ name = $name }
-                InFile            = $path
+                InFile            = $file.FullName
                 ContentType       = $mime
                 RetryIntervalSec  = 5
                 MaximumRetryCount = 5
             }
-            if ($PSCmdlet.ShouldProcess($path, $apiArgs.Method + " " + $apiArgs.Uri)) {
+            if ($PSCmdlet.ShouldProcess($file.FullName, $apiArgs.Method + " " + $apiArgs.Uri)) {
                 $res = Invoke-RestMethod @apiArgs @authHeaders
                 Write-Information "    State: $($res.state) @ $($res.browser_download_url)"
                 if ($res.name -cne $name) {
