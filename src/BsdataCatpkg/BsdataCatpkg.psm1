@@ -166,10 +166,10 @@ function Build-BsdataReleaseAssets {
         Push-Location $StagingPath
         try {
             # 'tag' assets: create '$repo.$tag.bsi' and '$repo.$tag.bsr'
-            & $wham publish -a bsr bsi -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag)  | Out-Host
+            & $wham publish -a bsr bsi -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag) | Out-Host
         
             # 'latest' assets: create '$repo.latest.bsi'
-            & $wham publish -a bsi -f $latestAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset)  | Out-Host
+            & $wham publish -a bsi -f $latestAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset) | Out-Host
         }
         finally {
             Pop-Location
@@ -178,6 +178,10 @@ function Build-BsdataReleaseAssets {
         $bugTrackerUrl = $RepositoryUrl + '/issues'
         $reportBugUrl = 'http://battlescribedata.appspot.com/#/repo/' + $repo
         $catpkgJsonFilename = Get-EscapedAssetName "$repo.catpkg.json"
+        $catpkgGzipFilename = $catpkgJsonFilename + '.gz'
+        $bsiUrl = Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset
+        $catpkgUrl = Get-GitHubUrl $catpkgJsonFilename -LatestReleaseAsset
+        $catpkgGzipUrl = Get-GitHubUrl $catpkgGzipFilename -LatestReleaseAsset
 
         # build '$repo.catpkg.json' content
         # based on https://github.com/BSData/bsdata/blob/82415028d9d63fe7a3372811942f6ec277ed649a/src/main/java/org/battlescribedata/dao/GitHubDao.java#L939-L957
@@ -189,8 +193,9 @@ function Build-BsdataReleaseAssets {
             version               = $tag
             lastUpdated           = $Release.created_at
             lastUpdateDescription = $Release.name
-            indexUrl              = Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset
-            repositoryUrl         = Get-GitHubUrl $catpkgJsonFilename -LatestReleaseAsset
+            indexUrl              = $bsiUrl
+            repositoryUrl         = $catpkgUrl
+            repositoryGzipUrl     = $catpkgGzipUrl
             githubUrl             = $RepositoryUrl
             feedUrl               = $RepositoryUrl + '/releases.atom'
             bugTrackerUrl         = $bugTrackerUrl
@@ -227,11 +232,65 @@ function Build-BsdataReleaseAssets {
         $catpkg.battleScribeVersion = $catpkg.repositoryFiles.battleScribeVersion | Sort-Object -Bottom 1
 
         # save json to file
-        $catpkg | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii | Set-Content (Join-Path $StagingPath $catpkgJsonFilename)
-        return Get-ChildItem $StagingPath -Include *.json, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
+        $catpkgPath = Join-Path $StagingPath $catpkgJsonFilename
+        $catpkg | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii | Set-Content $catpkgPath
+        # gzip catpkg
+        $catpkgPath | Compress-GZip
+
+        return Get-ChildItem $StagingPath -Include *.json, *.json.gz, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
     }
     finally {
         Pop-Location
+    }
+}
+
+function Compress-GZip {
+    [CmdletBinding(SupportsShouldProcess)]
+    param (
+        # Specifies a path to one or more locations. Wildcards are permitted.
+        [Parameter(Mandatory = $true,
+            Position = 0,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            HelpMessage = "Path to one or more locations.")]
+        [ValidateNotNullOrEmpty()]
+        [SupportsWildcards()]
+        [string[]]
+        $Path,
+        # Force overwrite of existing gzipped file
+        [Parameter()]
+        [switch]
+        $Force,
+        # Return FileInfo of the gzipped file
+        [Parameter()]
+        [switch]
+        $PassThru
+    )
+    process {
+        $Path | ForEach-Object {
+            $original = $_
+            $gzip = "$_.gz"
+            if ($PSCmdlet.ShouldProcess($original)) {
+                $inputFile = Get-Item $original
+                $outputFile = New-Item $gzip -Force:$Force
+                if (-not $outputFile) {
+                    return
+                }
+                try {
+                    $input = [System.IO.File]::OpenRead($inputFile.FullName)
+                    $output = [System.IO.File]::OpenWrite($outputFile.FullName)
+                    $gzipStream = [System.IO.Compression.GZipStream]::new($output, [System.IO.Compression.CompressionMode]'Compress')
+                    $input.CopyToAsync($gzipStream).Wait()
+                }
+                finally {
+                    $gzipStream.Dispose()
+                    $output.Dispose()
+                }
+                if ($PassThru) {
+                    return $outputFile
+                }
+            }
+        }
     }
 }
 
@@ -280,7 +339,7 @@ function Publish-GitHubReleaseAsset {
             $file = Get-Item $_
             $name = $file.Name
             $path = $file.FullName
-            $mime = if ($file.Extension -ne '.json') { 'application/zip' } else { 'application/json' }
+            $mime = 'application/octet-stream'
             if ($Force) {
                 $duplicate = $previousAssets | Where-Object name -eq $name | Select-Object -First 1
                 if ($duplicate -and $PSCmdlet.ShouldProcess($name, "DELETE " + $duplicate.url)) {
