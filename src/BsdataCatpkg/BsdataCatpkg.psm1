@@ -165,8 +165,11 @@ function Build-BsdataReleaseAssets {
         # publish indexes based on catz/gstz datafiles (already renamed)
         Push-Location $StagingPath
         try {
-            # 'tag' assets: create '$repo.$tag.bsi' and '$repo.$tag.bsr'
-            & $wham publish -a bsr bsi -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag) | Out-Host
+            # 'tag' assets: create '$repo.$tag.bsr'
+            & $wham publish -a bsr -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName | Out-Host
+
+            # 'tag' assets: create '$repo.$tag.bsi'
+            & $wham publish -a bsi -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag) | Out-Host
         
             # 'latest' assets: create '$repo.latest.bsi'
             & $wham publish -a bsi -f $latestAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset) | Out-Host
@@ -182,6 +185,7 @@ function Build-BsdataReleaseAssets {
         $bsiUrl = Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset
         $catpkgUrl = Get-GitHubUrl $catpkgJsonFilename -LatestReleaseAsset
         $catpkgGzipUrl = Get-GitHubUrl $catpkgGzipFilename -LatestReleaseAsset
+        $bsrUrl = Get-GitHubUrl "$taggedAssetNameEscaped.bsr" $tag
 
         # build '$repo.catpkg.json' content
         # based on https://github.com/BSData/bsdata/blob/82415028d9d63fe7a3372811942f6ec277ed649a/src/main/java/org/battlescribedata/dao/GitHubDao.java#L939-L957
@@ -196,6 +200,7 @@ function Build-BsdataReleaseAssets {
             indexUrl              = $bsiUrl
             repositoryUrl         = $catpkgUrl
             repositoryGzipUrl     = $catpkgGzipUrl
+            repositoryBsrUrl      = $bsrUrl
             githubUrl             = $RepositoryUrl
             feedUrl               = $RepositoryUrl + '/releases.atom'
             bugTrackerUrl         = $bugTrackerUrl
@@ -217,7 +222,7 @@ function Build-BsdataReleaseAssets {
                         type                = $root.LocalName.ToLowerInvariant()
                         revision            = [int]$root.revision
                         battleScribeVersion = $root.battleScribeVersion
-                        fileUrl             = Get-GitHubUrl $_.file.Name -LatestReleaseAsset
+                        fileUrl             = Get-GitHubUrl $_.file.Name $tag
                         githubUrl           = Get-GitHubUrl $nonzipFilename -Blob $Release.target_commitish
                         bugTrackerUrl       = $bugTrackerUrl
                         reportBugUrl        = $reportBugUrl
