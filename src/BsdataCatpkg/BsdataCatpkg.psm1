@@ -14,81 +14,6 @@
 # # Copyright statement for this module
 # Copyright = '(c) BSData. All rights reserved.'
 
-# this method builds an URL to various github locations
-function Get-GitHubUrl {
-    param (
-        [Parameter(Mandatory, Position = 0)]
-        [string] $Name,
-        [Parameter(ParameterSetName = 'tag', Position = 1, Mandatory)]
-        [string] $ReleaseTag,
-        [Parameter(ParameterSetName = 'latest', Mandatory)]
-        [switch] $LatestReleaseAsset,
-        [Parameter(ParameterSetName = 'blob', Position = 1, Mandatory)]
-        [switch] $Blob,
-        [Parameter(ParameterSetName = 'blob', Position = 2, Mandatory)]
-        [string] $Commitish,
-        [Parameter()]
-        [string] $RepositoryUrl
-    )
-    $escapedName = [uri]::EscapeDataString($Name)
-    $middleSegment = if ($Blob) {
-        "blob/$Commitish"
-    }
-    elseif ($LatestReleaseAsset) {
-        'releases/latest/download'
-    }
-    else {
-        $escapedTag = [uri]::EscapeDataString($ReleaseTag)
-        "releases/download/$escapedTag"
-    }
-    return "$RepositoryUrl/$middleSegment/$escapedName"
-}
-
-# this function returns an escaped name that will be accepted as github release asset name
-function Get-EscapedAssetName {
-    param (
-        [Parameter(Mandatory, Position = 0)]
-        [string] $Name
-    )
-    # according to https://developer.github.com/v3/repos/releases/#upload-a-release-asset
-    # GitHub renames asset filenames that have special characters, non-alphanumeric characters, and leading or trailing periods.
-    # Let's do that ourselves first so we know exact filename before upload.
-    # 1. replace any group of non a-z, digit, hyphen or underscore chars with a single period
-    $periodsOnly = $Name -creplace '[^a-zA-Z0-9\-_]+', '.'
-    # 2. remove any leading or trailing period
-    return $periodsOnly.Trim('.')
-}
-
-# this function performs uri template expansion (only query part)
-function Expand-UriTemplate {
-    param (
-        [Parameter(Mandatory)]
-        [string] $template,
-        [Parameter()]
-        [hashtable] $values = @{ }
-    )
-    # expands only query part template, based on https://github.com/octokit/octokit.net/blob/74dc51a6f567395d0c46d97f7270f959d671573e/Octokit/Helpers/StringExtensions.cs#L46-L68
-    $regex = [regex]::new('\{\?([^}]+)\}')
-    $match = $regex.Match($template)
-    if ($match.Success) {
-        $expansion = ''
-        $query = $match.Groups[1].Value.Split(',') | ForEach-Object {
-            $key = $_
-            $value = $values.$key
-            if ([string]::IsNullOrWhiteSpace($value)) {
-                return $null
-            }
-            $escapedValue = [uri]::EscapeDataString($value)
-            return "$key=$escapedValue"
-        } | Where-Object { $null -ne $_ } | Join-String -Separator '&'
-        if (-not [string]::IsNullOrWhiteSpace($query)) {
-            $expansion += "?$query"
-        }
-        return $regex.Replace($template, $expansion)
-    }
-    return $template
-}
-
 function Build-BsdataReleaseAssets {
     [CmdletBinding()]
     param (
@@ -249,56 +174,6 @@ function Build-BsdataReleaseAssets {
     }
 }
 
-function Compress-GZip {
-    [CmdletBinding(SupportsShouldProcess)]
-    param (
-        # Specifies a path to one or more locations. Wildcards are permitted.
-        [Parameter(Mandatory = $true,
-            Position = 0,
-            ValueFromPipeline = $true,
-            ValueFromPipelineByPropertyName = $true,
-            HelpMessage = "Path to one or more locations.")]
-        [ValidateNotNullOrEmpty()]
-        [SupportsWildcards()]
-        [string[]]
-        $Path,
-        # Force overwrite of existing gzipped file
-        [Parameter()]
-        [switch]
-        $Force,
-        # Return FileInfo of the gzipped file
-        [Parameter()]
-        [switch]
-        $PassThru
-    )
-    process {
-        $Path | ForEach-Object {
-            $original = $_
-            $gzip = "$_.gz"
-            if ($PSCmdlet.ShouldProcess($original)) {
-                $inputFile = Get-Item $original
-                $outputFile = New-Item $gzip -Force:$Force
-                if (-not $outputFile) {
-                    return
-                }
-                try {
-                    $input = [System.IO.File]::OpenRead($inputFile.FullName)
-                    $output = [System.IO.File]::OpenWrite($outputFile.FullName)
-                    $gzipStream = [System.IO.Compression.GZipStream]::new($output, [System.IO.Compression.CompressionMode]'Compress')
-                    $input.CopyToAsync($gzipStream).Wait()
-                }
-                finally {
-                    $gzipStream.Dispose()
-                    $output.Dispose()
-                }
-                if ($PassThru) {
-                    return $outputFile
-                }
-            }
-        }
-    }
-}
-
 function Publish-GitHubReleaseAsset {
     [CmdletBinding(
         SupportsShouldProcess
@@ -368,6 +243,132 @@ function Publish-GitHubReleaseAsset {
             }
         }
     }
+}
+
+# this function compresses input files as .gz files
+function Compress-GZip {
+    [CmdletBinding(SupportsShouldProcess)]
+    param (
+        # Specifies a path to one or more locations. Wildcards are permitted.
+        [Parameter(Mandatory = $true,
+            Position = 0,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true,
+            HelpMessage = "Path to one or more locations.")]
+        [ValidateNotNullOrEmpty()]
+        [SupportsWildcards()]
+        [string[]]
+        $Path,
+        # Force overwrite of existing gzipped file
+        [Parameter()]
+        [switch]
+        $Force,
+        # Return FileInfo of the gzipped file
+        [Parameter()]
+        [switch]
+        $PassThru
+    )
+    process {
+        $Path | ForEach-Object {
+            $original = $_
+            $gzip = "$_.gz"
+            if ($PSCmdlet.ShouldProcess($original)) {
+                $inputFile = Get-Item $original
+                $outputFile = New-Item $gzip -Force:$Force
+                if (-not $outputFile) {
+                    return
+                }
+                try {
+                    $input = [System.IO.File]::OpenRead($inputFile.FullName)
+                    $output = [System.IO.File]::OpenWrite($outputFile.FullName)
+                    $gzipStream = [System.IO.Compression.GZipStream]::new($output, [System.IO.Compression.CompressionMode]'Compress')
+                    $input.CopyToAsync($gzipStream).Wait()
+                }
+                finally {
+                    $gzipStream.Dispose()
+                    $output.Dispose()
+                }
+                if ($PassThru) {
+                    return $outputFile
+                }
+            }
+        }
+    }
+}
+
+# this function builds a github download url
+function Get-GitHubUrl {
+    param (
+        [Parameter(Mandatory, Position = 0)]
+        [string] $Name,
+        [Parameter(ParameterSetName = 'tag', Position = 1, Mandatory)]
+        [string] $ReleaseTag,
+        [Parameter(ParameterSetName = 'latest', Mandatory)]
+        [switch] $LatestReleaseAsset,
+        [Parameter(ParameterSetName = 'blob', Position = 1, Mandatory)]
+        [switch] $Blob,
+        [Parameter(ParameterSetName = 'blob', Position = 2, Mandatory)]
+        [string] $Commitish,
+        [Parameter()]
+        [string] $RepositoryUrl
+    )
+    $escapedName = [uri]::EscapeDataString($Name)
+    $middleSegment = if ($Blob) {
+        "blob/$Commitish"
+    }
+    elseif ($LatestReleaseAsset) {
+        'releases/latest/download'
+    }
+    else {
+        $escapedTag = [uri]::EscapeDataString($ReleaseTag)
+        "releases/download/$escapedTag"
+    }
+    return "$RepositoryUrl/$middleSegment/$escapedName"
+}
+
+# this function returns an escaped name that will be accepted as github release asset name
+function Get-EscapedAssetName {
+    param (
+        [Parameter(Mandatory, Position = 0)]
+        [string] $Name
+    )
+    # according to https://developer.github.com/v3/repos/releases/#upload-a-release-asset
+    # GitHub renames asset filenames that have special characters, non-alphanumeric characters, and leading or trailing periods.
+    # Let's do that ourselves first so we know exact filename before upload.
+    # 1. replace any group of non a-z, digit, hyphen or underscore chars with a single period
+    $periodsOnly = $Name -creplace '[^a-zA-Z0-9\-_]+', '.'
+    # 2. remove any leading or trailing period
+    return $periodsOnly.Trim('.')
+}
+
+# this function performs uri template expansion (only query part)
+function Expand-UriTemplate {
+    param (
+        [Parameter(Mandatory)]
+        [string] $template,
+        [Parameter()]
+        [hashtable] $values = @{ }
+    )
+    # expands only query part template, based on https://github.com/octokit/octokit.net/blob/74dc51a6f567395d0c46d97f7270f959d671573e/Octokit/Helpers/StringExtensions.cs#L46-L68
+    $regex = [regex]::new('\{\?([^}]+)\}')
+    $match = $regex.Match($template)
+    if ($match.Success) {
+        $expansion = ''
+        $query = $match.Groups[1].Value.Split(',') | ForEach-Object {
+            $key = $_
+            $value = $values.$key
+            if ([string]::IsNullOrWhiteSpace($value)) {
+                return $null
+            }
+            $escapedValue = [uri]::EscapeDataString($value)
+            return "$key=$escapedValue"
+        } | Where-Object { $null -ne $_ } | Join-String -Separator '&'
+        if (-not [string]::IsNullOrWhiteSpace($query)) {
+            $expansion += "?$query"
+        }
+        return $regex.Replace($template, $expansion)
+    }
+    return $template
 }
 
 Export-ModuleMember Build-BsdataReleaseAssets, Publish-GitHubReleaseAsset
