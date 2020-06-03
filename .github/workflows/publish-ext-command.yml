@@ -30,6 +30,7 @@ jobs:
               : await github.repos.getReleaseByTag({owner, repo, tag}))
             core.setOutput('repo', repository)
             core.setOutput('tag', release.tag_name)
+            core.setOutput('html_url', release.html_url)
             return release
       - uses: actions/checkout@v2
         with:
@@ -39,7 +40,8 @@ jobs:
           path: target
           repository: ${{ env.ARG_REPO }}
           ref: ${{ steps.get-release.outputs.tag }}
-      - shell: pwsh
+      - name: Run publish-catpkg script
+        shell: pwsh
         env:
           REPO_JSON: ${{ steps.get-release.outputs.repo }}
           RELEASE_JSON: ${{ steps.get-release.outputs.result }}
@@ -58,6 +60,7 @@ jobs:
         uses: peter-evans/create-or-update-comment@v1
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
+          body:  "Published assets to [${{ steps.get-release.outputs.tag }}](${{ steps.get-release.outputs.html_url }})"
           reactions: hooray
       - name: Add reaction to command comment on failure
         uses: peter-evans/create-or-update-comment@v1
