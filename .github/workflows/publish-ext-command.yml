@@ -17,7 +17,7 @@ jobs:
         uses: peter-evans/create-or-update-comment@v1
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
-          body: '[Deployment run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+          body: "[Deployment run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
       - uses: actions/github-script@v1
         id: get-release
         with:
@@ -25,11 +25,9 @@ jobs:
             const [owner, repo] = process.env.ARG_REPO.split('/')
             const tag = process.env.ARG_REL || 'latest'
             const { data: repository } = await github.repos.get({owner, repo})
-            if (tag === 'latest') {
-              const { data: release } = await github.repos.getLatestRelease({owner, repo})
-            } else {
-              const { data: release } = await github.repos.getReleaseByTag({owner, repo, tag})
-            }
+            const { data: release } = (tag === 'latest'
+              ? await github.repos.getLatestRelease({owner, repo})
+              : await github.repos.getReleaseByTag({owner, repo, tag}))
             core.setOutput('repo', repository)
             core.setOutput('tag', release.tag_name)
             return release
