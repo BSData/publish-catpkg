@@ -1,0 +1,63 @@
+name: Publish external
+# trigger by chatops '/publish-ext repo=BSData/repo rel=latest'
+# 'repo' is required
+# 'rel' specifies release tag to publish catpkg assets to.
+#    Defaults to 'latest' which is the latest release.
+on:
+  repository_dispatch:
+    types: [publish-ext-command]
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ARG_REPO: ${{ github.event.client_payload.slash_command.repo }}
+      ARG_REL: ${{ github.event.client_payload.slash_command.rel }}
+    steps:
+      - name: Add deployment run link to command comment
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
+          body: '[Deployment run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+      - uses: actions/github-script@v1
+        id: get-release
+        with:
+          script: |
+            const [owner, repo] = process.env.ARG_REPO.split('/')
+            const tag = process.env.ARG_REL || 'latest'
+            const { data: repository } = await github.repos.get({owner, repo})
+            if (tag === 'latest') {
+              const { data: release } = await github.repos.getLatestRelease({owner, repo})
+            } else {
+              const { data: release } = await github.repos.getReleaseByTag({owner, repo, tag})
+            }
+            core.setOutput('repo', repository)
+            core.setOutput('tag', release.tag_name)
+            return release
+      - uses: actions/checkout@v2
+        with:
+          path: this
+      - uses: actions/checkout@v2
+        with:
+          path: target
+          repository: ${{ env.ARG_REPO }}
+          ref: ${{ steps.get-release.outputs.tag }}
+      - shell: pwsh
+        env:
+          REPO_JSON: ${{ steps.get-release.outputs.repo }}
+          RELEASE_JSON: ${{ steps.get-release.outputs.result }}
+          TOKEN: ${{ secrets.ORG_REPO_WRITE_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pubArgs = @{
+            Path = Get-Item target -Force
+            StagingPath = Get-Item $env:RUNNER_TEMP -Force
+            Repository = $env:REPO_JSON | ConvertFrom-Json
+            Release = $env:RELEASE_JSON | ConvertFrom-Json
+            Token = $env:TOKEN
+          }
+          ./this/.github/actions/PublishExt.ps1 @pubArgs
+      - name: Add reaction to command comment
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
+          reactions: hooray
