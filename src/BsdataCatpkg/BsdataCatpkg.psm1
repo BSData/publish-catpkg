@@ -78,7 +78,6 @@ function Build-BsdataReleaseAssets {
             return @{
                 originalName = $OriginalName
                 file         = $File
-                sha256       = (Get-FileHash $File 'SHA256').Hash
             }
         }
         $datafiles | ForEach-Object {
@@ -154,7 +153,7 @@ function Build-BsdataReleaseAssets {
                         authorName          = $root.authorName
                         authorContact       = $root.authorContact
                         authorUrl           = $root.authorUrl
-                        sha256              = $_.sha256
+                        sourceSha256        = (Get-FileHash $nonzipFilename 'SHA256').Hash
                     }
                 })
         }
