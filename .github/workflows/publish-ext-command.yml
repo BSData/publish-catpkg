@@ -54,8 +54,14 @@ jobs:
             Token = $env:TOKEN
           }
           ./this/.github/actions/PublishExt.ps1 @pubArgs
-      - name: Add reaction to command comment
+      - name: Add reaction to command comment on success
         uses: peter-evans/create-or-update-comment@v1
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
           reactions: hooray
+      - name: Add reaction to command comment on failure
+        uses: peter-evans/create-or-update-comment@v1
+        if: failure()
+        with:
+          comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
+          reactions: '-1'
