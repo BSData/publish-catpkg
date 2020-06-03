@@ -50,7 +50,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $pubArgs = @{
             Path = Get-Item target -Force
-            StagingPath = Get-Item "$env:RUNNER_TEMP/assets" -Force
+            StagingPath = New-Item "$env:RUNNER_TEMP/assets" -ItemType Directory -Force
             Repository = $env:REPO_JSON | ConvertFrom-Json
             Release = $env:RELEASE_JSON | ConvertFrom-Json
             Token = $env:TOKEN
