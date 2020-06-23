@@ -278,10 +278,10 @@ function Compress-GZip {
                     return
                 }
                 try {
-                    $input = [System.IO.File]::OpenRead($inputFile.FullName)
-                    $output = [System.IO.File]::OpenWrite($outputFile.FullName)
-                    $gzipStream = [System.IO.Compression.GZipStream]::new($output, [System.IO.Compression.CompressionMode]'Compress')
-                    $input.CopyToAsync($gzipStream).Wait()
+                    $inputStream = [System.IO.File]::OpenRead($inputFile.FullName)
+                    $outputStream = [System.IO.File]::OpenWrite($outputFile.FullName)
+                    $gzipStream = [System.IO.Compression.GZipStream]::new($outputStream, [System.IO.Compression.CompressionMode]'Compress')
+                    $inputStream.CopyToAsync($gzipStream).Wait()
                 }
                 finally {
                     $gzipStream.Dispose()

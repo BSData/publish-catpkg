@@ -38,3 +38,5 @@ jobs:
 ## Credits
 
 The action was built based on https://github.com/ebekker/pwsh-github-action-base
+
+GitHubActionsCore.psm1 taken from https://github.com/Amadevus/pwsh-script
