@@ -13,11 +13,12 @@ jobs:
       ARG_REPO: ${{ github.event.client_payload.slash_command.repo }}
       ARG_REL: ${{ github.event.client_payload.slash_command.rel }}
     steps:
-      - name: Add deployment run link to command comment
+      - name: Link to this workflow in command comment
         uses: peter-evans/create-or-update-comment@v1
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
-          body: "[Deployment run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          body: "[Workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
       - uses: actions/github-script@v1
         id: get-release
         with:
@@ -32,39 +33,45 @@ jobs:
             core.setOutput('tag', release.tag_name)
             core.setOutput('html_url', release.html_url)
             return release
+
       - uses: actions/checkout@v2
         with:
           path: this
+
       - uses: actions/checkout@v2
         with:
           path: target
           repository: ${{ env.ARG_REPO }}
           ref: ${{ steps.get-release.outputs.tag }}
+
       - name: Run publish-catpkg script
-        shell: pwsh
+        uses: Amadevus/pwsh-script@v1
         env:
           REPO_JSON: ${{ steps.get-release.outputs.repo }}
           RELEASE_JSON: ${{ steps.get-release.outputs.result }}
           TOKEN: ${{ secrets.ORG_REPO_WRITE_TOKEN }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $pubArgs = @{
-            Path = Get-Item target -Force
-            StagingPath = New-Item "$env:RUNNER_TEMP/assets" -ItemType Directory -Force
-            Repository = $env:REPO_JSON | ConvertFrom-Json
-            Release = $env:RELEASE_JSON | ConvertFrom-Json
-            Token = $env:TOKEN
-          }
-          ./this/.github/actions/PublishExt.ps1 @pubArgs
+        with:
+          script: |
+            $ErrorActionPreference = 'Stop'
+            $pubArgs = @{
+              Path = Get-Item target -Force
+              StagingPath = New-Item "$env:RUNNER_TEMP/assets" -ItemType Directory -Force
+              Repository = $env:REPO_JSON | ConvertFrom-Json
+              Release = $env:RELEASE_JSON | ConvertFrom-Json
+              Token = $env:TOKEN
+            }
+            ./this/.github/actions/PublishExt.ps1 @pubArgs
+
       - name: Add reaction to command comment on success
         uses: peter-evans/create-or-update-comment@v1
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
-          body:  "Published assets to [${{ steps.get-release.outputs.tag }}](${{ steps.get-release.outputs.html_url }})"
+          body: "Published assets to [${{ steps.get-release.outputs.tag }}](${{ steps.get-release.outputs.html_url }})"
           reactions: hooray
+
       - name: Add reaction to command comment on failure
         uses: peter-evans/create-or-update-comment@v1
         if: failure()
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
-          reactions: '-1'
+          reactions: "-1"

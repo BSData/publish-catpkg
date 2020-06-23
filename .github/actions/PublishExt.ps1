@@ -3,20 +3,19 @@
 [CmdletBinding()]
 param (
     [Parameter()]
-    [string]
-    $Path,
+    [string]$Path,
+
     [Parameter()]
-    [string]
-    $StagingPath,
+    [string]$StagingPath,
+
     [Parameter()]
-    [object]
-    $Repository,
+    [object]$Repository,
+
     [Parameter()]
-    [object]
-    $Release,
+    [object]$Release,
+
     [Parameter()]
-    [string]
-    $Token
+    [string]$Token
 )
 
 Import-Module $PSScriptRoot/../../lib/GitHubActionsCore
