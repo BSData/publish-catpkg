@@ -285,7 +285,7 @@ function Compress-GZip {
                 }
                 finally {
                     $gzipStream.Dispose()
-                    $output.Dispose()
+                    $outputStream.Dispose()
                 }
                 if ($PassThru) {
                     return $outputFile
