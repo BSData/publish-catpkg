@@ -60,7 +60,7 @@ jobs:
               Release = $env:RELEASE_JSON | ConvertFrom-Json
               Token = $env:TOKEN
             }
-            ./this/.github/actions/PublishExt.ps1 @pubArgs
+            ./this/action.ps1 @pubArgs
 
       - name: Add reaction to command comment on success
         uses: peter-evans/create-or-update-comment@v1

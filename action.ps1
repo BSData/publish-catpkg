@@ -1,32 +1,40 @@
 #!/usr/bin/env pwsh
 
-$ErrorActionPreference = 'Stop'
+[CmdletBinding()]
+param (
+    [Parameter()]
+    [string]$Path,
 
-Import-Module $PSScriptRoot/lib/GitHubActionsCore
-Import-Module $PSScriptRoot/src/BsdataCatpkg
+    [Parameter()]
+    [string]$StagingPath,
 
-# read inputs, set output
-$uploadUrl = Get-ActionInput 'upload-url'
-$token = Get-ActionInput 'token' -Required
-$stagingPath = Get-ActionInput staging-path -Required
-Set-ActionOutput staging-path $stagingPath
+    [Parameter()]
+    [object]$Repository,
 
-$event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
-$repo = $event.repository
-$release = $event.release
+    [Parameter()]
+    [object]$Release,
+
+    [Parameter()]
+    [string]$ReleaseUploadUrl,
+
+    [Parameter()]
+    [string]$Token
+)
+
+Import-Module $PSScriptRoot/../../src/BsdataCatpkg
 
 $buildArgs = @{
-    Path                  = '.'
-    StagingPath           = $stagingPath
-    Repository            = $repo.full_name
-    RepositoryDisplayName = $repo.description ? $repo.description : $repo.name
-    RepositoryUrl         = $repo.html_url
-    Release               = $release
+    Path                  = $Path
+    StagingPath           = $StagingPath
+    Repository            = $Repository.full_name
+    RepositoryDisplayName = $Repository.description ? $Repository.description : $Repository.name
+    RepositoryUrl         = $Repository.html_url
+    Release               = $Release
 }
 $publishArgs = @{
-    UploadUrl = $uploadUrl ?? $release.upload_url
-    AssetsUrl = $release.assets_url
-    Token     = $token
+    UploadUrl = $ReleaseUploadUrl ?? $Release.upload_url
+    AssetsUrl = $Release.assets_url
+    Token     = $Token
 }
 Build-BsdataReleaseAssets @buildArgs | Publish-GitHubReleaseAsset @publishArgs -Force
 

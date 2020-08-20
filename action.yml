@@ -5,23 +5,40 @@ description: >
   and a bsr package, attaching them to a given release for download.
 inputs:
   token:
-    description: GitHub auth token to authorize uploading release assets
+    description: GitHub auth token to authorize uploading release assets.
     required: false
     default: ${{ github.token }}
   staging-path:
-    description: Path where assets will be written to before being uploaded
+    description: Path where assets will be written to before being uploaded.
     required: false
     default: ${{ runner.temp }}/assets
   upload-url:
-    description: Upload URL for release assets
+    description: Upload URL for release assets.
     required: false
     default: ${{ github.event.release.upload_url }}
 outputs:
   staging-path:
-    description: Path where generated assets were saved
+    description: Path where generated assets were saved.
+    value: ${{ inputs.staging-path }}
 runs:
-  using: node12
-  main: dist/index.js
+  using: composite
+  steps:
+    - run: |
+        $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+        $pubArgs = @{
+          Path = Get-Item target -Force
+          StagingPath = New-Item "$env:STAGING_PATH" -ItemType Directory -Force
+          Repository = $event.repository
+          Release = $event.release
+          ReleaseUploadUrl = $env:UPLOAD_URL
+          Token = $env:TOKEN
+        }
+        ${{ github.action_path }}/action.ps1 @pubArgs
+      shell: pwsh
+      env:
+        STAGING_PATH: ${{ inputs.staging-path }}
+        TOKEN: ${{ inputs.token }}
+        UPLOAD_URL: ${{ inputs.upload-url }}
 branding:
   icon: book-open
   color: blue
