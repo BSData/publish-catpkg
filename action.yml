@@ -26,7 +26,7 @@ runs:
     - run: |
         $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
         $pubArgs = @{
-          Path = Get-Item target -Force
+          Path = Get-Location
           StagingPath = New-Item "$env:STAGING_PATH" -ItemType Directory -Force
           Repository = $event.repository
           Release = $event.release
