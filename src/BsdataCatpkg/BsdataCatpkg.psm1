@@ -64,7 +64,7 @@ function Build-BsdataReleaseAssets {
             $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 1
             $env:DOTNET_NOLOGO = 1
             $env:DOTNET_CLI_TELEMETRY_OPTOUT = 1
-            dotnet tool install wham --version 0.10.0 --tool-path "$PSScriptRoot/lib" | Out-Host
+            dotnet tool install wham --version 0.11.0 --tool-path "$PSScriptRoot/lib" | Out-Host
         }
 
         # create catz/gstz files
