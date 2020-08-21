@@ -21,7 +21,7 @@ param (
     [string]$Token
 )
 
-Import-Module $PSScriptRoot/../../src/BsdataCatpkg
+Import-Module $PSScriptRoot/src/BsdataCatpkg
 
 $buildArgs = @{
     Path                  = $Path
