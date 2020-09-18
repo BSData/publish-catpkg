@@ -32,7 +32,7 @@ $buildArgs = @{
     Release               = $Release
 }
 $publishArgs = @{
-    UploadUrl = $ReleaseUploadUrl ?? $Release.upload_url
+    UploadUrl = if ($ReleaseUploadUrl) { $ReleaseUploadUrl } else { $Release.upload_url }
     AssetsUrl = $Release.assets_url
     Token     = $Token
 }
