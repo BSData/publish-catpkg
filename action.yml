@@ -24,6 +24,7 @@ runs:
   using: composite
   steps:
     - run: |
+        $ErrorActionPreference = 'Stop'
         $event = Get-Content $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
         $pubArgs = @{
           Path = Get-Location

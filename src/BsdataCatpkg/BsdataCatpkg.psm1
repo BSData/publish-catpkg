@@ -14,6 +14,32 @@
 # # Copyright statement for this module
 # Copyright = '(c) BSData. All rights reserved.'
 
+filter CallNative {
+    [CmdletBinding()]
+    param (
+        [Parameter(ValueFromPipeline)]
+        [scriptblock] $Command,
+
+        [Parameter()]
+        [switch] $PrintCommand,
+
+        [Parameter()]
+        [switch] $OutHost
+    )
+    if ($PrintCommand) {
+        Write-Host "$Command".Trim() -ForegroundColor Cyan
+    }
+    $global:LASTEXITCODE = 0
+    if ($OutHost) {
+        . $Command | Out-Host
+    } else {
+        . $Command
+    }
+    if ($global:LASTEXITCODE -ne 0) {
+        Write-Error "Native executable failed with exit code $($global:LASTEXITCODE): $("$Command".Trim())"
+    }
+}
+
 function Build-BsdataReleaseAssets {
     [CmdletBinding()]
     param (
@@ -64,11 +90,15 @@ function Build-BsdataReleaseAssets {
             $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 1
             $env:DOTNET_NOLOGO = 1
             $env:DOTNET_CLI_TELEMETRY_OPTOUT = 1
-            dotnet tool install wham --version 0.11.0 --tool-path "$PSScriptRoot/lib" | Out-Host
+            {
+                dotnet tool install wham --version 0.11.0 --tool-path "$PSScriptRoot/lib"
+            } | CallNative -PrintCommand -OutHost
         }
 
         # create catz/gstz files
-        & $wham publish -a zip -o $StagingPath | Out-Host
+        {
+            & $wham publish -a zip -o $StagingPath
+        } | CallNative -PrintCommand -OutHost
 
         # rename files so that they have release asset-compatible names, save mappings
         $datafiles = Get-ChildItem $StagingPath -Recurse -Include *.catz, *.gstz -File | ForEach-Object {
@@ -89,14 +119,17 @@ function Build-BsdataReleaseAssets {
         # publish indexes based on catz/gstz datafiles (already renamed)
         Push-Location $StagingPath
         try {
-            # 'tag' assets: create '$repo.$tag.bsr'
-            & $wham publish -a bsr -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName | Out-Host
-
-            # 'tag' assets: create '$repo.$tag.bsi'
-            & $wham publish -a bsi -f $taggedAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag) | Out-Host
-        
-            # 'latest' assets: create '$repo.latest.bsi'
-            & $wham publish -a bsi -f $latestAssetNameEscaped --repo-name $RepositoryDisplayName --url $(Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset) | Out-Host
+            $repoName = $RepositoryDisplayName
+            $tagBsiUrl = Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag
+            $latestBsiUrl = Get-GitHubUrl "$latestAssetNameEscaped.bsi" -LatestReleaseAsset
+            @(
+                # 'tag' assets: create '$repo.$tag.bsr'
+                { & $wham publish -a bsr -f $taggedAssetNameEscaped --repo-name $repoName },
+                # 'tag' assets: create '$repo.$tag.bsi'
+                { & $wham publish -a bsi -f $taggedAssetNameEscaped --repo-name $repoName --url $tagBsiUrl },
+                # 'latest' assets: create '$repo.latest.bsi'
+                { & $wham publish -a bsi -f $latestAssetNameEscaped --repo-name $repoName --url $latestBsiUrl }
+            ) | CallNative -PrintCommand -OutHost
         }
         finally {
             Pop-Location
