@@ -91,7 +91,7 @@ function Build-BsdataReleaseAssets {
             $env:DOTNET_NOLOGO = 1
             $env:DOTNET_CLI_TELEMETRY_OPTOUT = 1
             {
-                dotnet tool install wham --version 0.11.0 --tool-path "$PSScriptRoot/lib"
+                dotnet tool install wham --version 0.13.0 --tool-path "$PSScriptRoot/lib"
             } | CallNative -PrintCommand -OutHost
         }
 
