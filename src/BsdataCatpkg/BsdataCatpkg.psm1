@@ -14,6 +14,8 @@
 # # Copyright statement for this module
 # Copyright = '(c) BSData. All rights reserved.'
 
+#Requires -Version 7
+
 filter CallNative {
     [CmdletBinding()]
     param (
@@ -32,7 +34,8 @@ filter CallNative {
     $global:LASTEXITCODE = 0
     if ($OutHost) {
         . $Command | Out-Host
-    } else {
+    }
+    else {
         . $Command
     }
     if ($global:LASTEXITCODE -ne 0) {
@@ -76,7 +79,7 @@ function Build-BsdataReleaseAssets {
     $RepositoryUrl ??= "https://github.com/$Repository"
     $PSDefaultParameterValues["Get-GitHubUrl:RepositoryUrl"] = $RepositoryUrl
 
-    Push-Location $Path
+    Push-Location -LiteralPath $Path
     try {
         # check if there are any cat/gst files to process, otherwise short-circuit out
         if ((Get-ChildItem -Recurse -Include *.cat, *.gst -File).Length -eq 0) {
@@ -101,7 +104,7 @@ function Build-BsdataReleaseAssets {
         } | CallNative -PrintCommand -OutHost
 
         # rename files so that they have release asset-compatible names, save mappings
-        $datafiles = Get-ChildItem $StagingPath -Recurse -Include *.catz, *.gstz -File | ForEach-Object {
+        $datafiles = Get-ChildItem -LiteralPath $StagingPath -Recurse -Include *.catz, *.gstz -File | ForEach-Object {
             # drop 'z' from extension
             $OriginalName = $_.Name.Remove($_.Name.Length - 1)
             $File = $_ | Rename-Item -NewName (Get-EscapedAssetName $_.Name) -PassThru
@@ -117,7 +120,7 @@ function Build-BsdataReleaseAssets {
         $latestAssetNameEscaped = Get-EscapedAssetName "$repo.latest"
 
         # publish indexes based on catz/gstz datafiles (already renamed)
-        Push-Location $StagingPath
+        Push-Location -LiteralPath $StagingPath
         try {
             $repoName = $RepositoryDisplayName
             $tagBsiUrl = Get-GitHubUrl "$taggedAssetNameEscaped.bsi" $tag
@@ -168,7 +171,7 @@ function Build-BsdataReleaseAssets {
                     # also it's expected wham will take over creation of catpkg json in future
                     # based on https://github.com/BSData/bsdata/blob/82415028d9d63fe7a3372811942f6ec277ed649a/src/main/java/org/battlescribedata/dao/GitHubDao.java#L886-L911
                     $nonzipFilename = $_.originalName
-                    $xml = if (Test-Path $nonzipFilename) { [xml](Get-Content $nonzipFilename) }
+                    $xml = if (Test-Path -LiteralPath $nonzipFilename) { [xml](Get-Content -LiteralPath $nonzipFilename) }
                     if ($null -eq $xml) {
                         throw "Cannot index '$($_.file.Name)' - didn't find '$nonzipFilename'."
                     }
@@ -186,7 +189,7 @@ function Build-BsdataReleaseAssets {
                         authorName          = $root.authorName
                         authorContact       = $root.authorContact
                         authorUrl           = $root.authorUrl
-                        sourceSha256        = (Get-FileHash $nonzipFilename 'SHA256').Hash
+                        sourceSha256        = (Get-FileHash -LiteralPath $nonzipFilename 'SHA256').Hash
                     }
                 })
         }
@@ -195,11 +198,11 @@ function Build-BsdataReleaseAssets {
 
         # save json to file
         $catpkgPath = Join-Path $StagingPath $catpkgJsonFilename
-        $catpkg | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii | Set-Content $catpkgPath
+        $catpkg | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii | Set-Content -LiteralPath $catpkgPath
         # gzip catpkg
         $catpkgPath | Compress-GZip
 
-        return Get-ChildItem $StagingPath -Include *.json, *.json.gz, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
+        return Get-ChildItem -LiteralPath $StagingPath -Include *.json, *.json.gz, *.bsi, *.bsr, *.gstz, *.catz -Recurse -File | Sort-Object -Property Name
     }
     finally {
         Pop-Location
@@ -248,7 +251,7 @@ function Publish-GitHubReleaseAsset {
     process {
         # upload assets (delete old ones with the same name first if $Force)
         $Path | ForEach-Object {
-            $file = Get-Item $_
+            $file = Get-Item -LiteralPath $_
             $name = $file.Name
             $mime = 'application/octet-stream'
             if ($Force) {
@@ -281,14 +284,14 @@ function Publish-GitHubReleaseAsset {
 function Compress-GZip {
     [CmdletBinding(SupportsShouldProcess)]
     param (
-        # Specifies a path to one or more locations. Wildcards are permitted.
+        # Specifies a path to one or more locations.
         [Parameter(Mandatory = $true,
             Position = 0,
             ValueFromPipeline = $true,
             ValueFromPipelineByPropertyName = $true,
             HelpMessage = "Path to one or more locations.")]
+        [Alias("PSPath")]
         [ValidateNotNullOrEmpty()]
-        [SupportsWildcards()]
         [string[]]
         $Path,
         # Force overwrite of existing gzipped file
@@ -305,7 +308,7 @@ function Compress-GZip {
             $original = $_
             $gzip = "$_.gz"
             if ($PSCmdlet.ShouldProcess($original)) {
-                $inputFile = Get-Item $original
+                $inputFile = Get-Item -LiteralPath $original
                 $outputFile = New-Item $gzip -Force:$Force
                 if (-not $outputFile) {
                     return
