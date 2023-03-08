@@ -18,7 +18,7 @@ jobs:
   publish-catpkg:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: BSData/publish-catpkg@v1
         with:
         # GitHub OAuth token to authorize API requests for upload of assets

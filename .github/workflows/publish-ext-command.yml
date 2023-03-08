@@ -10,42 +10,42 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     env:
-      ARG_REPO: ${{ github.event.client_payload.slash_command.repo }}
-      ARG_REL: ${{ github.event.client_payload.slash_command.rel }}
+      ARG_REPO: ${{ github.event.client_payload.slash_command.named.repo }}
+      ARG_REL: ${{ github.event.client_payload.slash_command.named.rel }}
     steps:
       - name: Link to this workflow in command comment
-        uses: peter-evans/create-or-update-comment@v1
+        uses: peter-evans/create-or-update-comment@v2
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
           body: "[Workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
 
-      - uses: actions/github-script@v1
+      - uses: actions/github-script@v6
         id: get-release
         with:
           script: |
             const [owner, repo] = process.env.ARG_REPO.split('/')
             const tag = process.env.ARG_REL || 'latest'
-            const { data: repository } = await github.repos.get({owner, repo})
+            const { data: repository } = await github.rest.repos.get({owner, repo})
             const { data: release } = (tag === 'latest'
-              ? await github.repos.getLatestRelease({owner, repo})
-              : await github.repos.getReleaseByTag({owner, repo, tag}))
+              ? await github.rest.repos.getLatestRelease({owner, repo})
+              : await github.rest.repos.getReleaseByTag({owner, repo, tag}))
             core.setOutput('repo', repository)
             core.setOutput('tag', release.tag_name)
             core.setOutput('html_url', release.html_url)
             return release
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: this
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: target
           repository: ${{ env.ARG_REPO }}
           ref: ${{ steps.get-release.outputs.tag }}
 
       - name: Run publish-catpkg script
-        uses: Amadevus/pwsh-script@v1
+        uses: Amadevus/pwsh-script@v2
         env:
           REPO_JSON: ${{ steps.get-release.outputs.repo }}
           RELEASE_JSON: ${{ steps.get-release.outputs.result }}
@@ -63,14 +63,14 @@ jobs:
             ./this/action.ps1 @pubArgs
 
       - name: Add reaction to command comment on success
-        uses: peter-evans/create-or-update-comment@v1
+        uses: peter-evans/create-or-update-comment@v2
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
           body: "Published assets to [${{ steps.get-release.outputs.tag }}](${{ steps.get-release.outputs.html_url }})"
           reactions: hooray
 
       - name: Add reaction to command comment on failure
-        uses: peter-evans/create-or-update-comment@v1
+        uses: peter-evans/create-or-update-comment@v2
         if: failure()
         with:
           comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
